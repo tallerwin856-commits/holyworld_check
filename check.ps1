@@ -1,5 +1,5 @@
 # ================================================================
-# HolyCheck v3.2.3 — Silent Edition (исправлен запуск)
+# HolyCheck v3.2.3 — Silent Edition (исправлен запуск) work 1/1
 # ================================================================
 
 $ErrorActionPreference = "SilentlyContinue"
