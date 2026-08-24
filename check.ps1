@@ -98,7 +98,8 @@ Write-Host @"
     ██║  ██║╚██████╔╝███████╗   ██║       ╚███╔███╔╝╚██████╝██║  ██║███████╗██████╔╝
     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝        ╚══╝══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝
                                     
-           HolyCheck — проверка игровой среды v3.2.3 (мод)
+           HolyCheck — проверка игровой среды v3.2.3 (create holyworld moderation - ToplecCHlKA)
+                                       https://mods.holyworld.me/
 "@ -ForegroundColor Cyan
 
 Sep
